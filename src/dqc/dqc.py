@@ -3,110 +3,104 @@ from collections import defaultdict
 import logging 
 import datetime as dt
 from decorators.exec_time import exec_time
-from .dqc_template import DQCTemplate
+from typing import Optional, Dict
+import numpy as np
+from scipy import stats
+from sklearn.ensemble import IsolationForest
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-class DQCPipeline(DQCTemplate):
-
-
-    def validation_report(self, datasets):
-            
-        validation_report = defaultdict()
-
-        validation_report["values"] = self._values_report(datasets)
-        logger.info(f"Values report is ready - {dt.datetime.now()}")
-
-        validation_report["duplicates"] = self._duplicates_report(datasets)
-        logger.info(f"Duplicates report is ready - {dt.datetime.now()}")
-
-        return validation_report
-
-
-    def statistics_report(self, datasets):
-            
-        statistics_report = defaultdict()
-
-        statistics_report["distribution"] = self._distribution_report(datasets)
-        logger.info(f"Distribution report is ready - {dt.datetime.now()}")
-
-        statistics_report["outliers"] = self._outliers_report(
-            statistics_report["distribution"]
-        )        
-        logger.info(f"Outliers report is ready - {dt.datetime.now()}")
-
-        return statistics_report
-        
-
-    def render_report(self, validation_report, statistics_report):
-        rendered_report = {
-            "validation_report": validation_report,
-            "statistics_report": statistics_report
+class DQCPipeline:
+    def __init__(self, df: pd.DataFrame, config: Optional[Dict] = None):
+        self.df = df
+        self.config = config if config else {}
+        self.defaultconfig = {
+            "percentiles": [0.01, 0.99]
         }
-        return rendered_report
-        
-        
-    @exec_time
-    def _values_report(self, datasets):
-        report = []
-        for name, dataset in datasets.items():
-            nans_report = dataset.isna().sum()
-            uniques_report = dataset.nunique()
-            dtypes_report = dataset.infer_objects().dtypes
-            totals = [len(dataset) for _ in range(len(dataset.columns))]
-
-
-            report.append(pd.DataFrame(
-                data = [
-                    nans_report.values,
-                    uniques_report.values,
-                    dtypes_report,
-                    totals
-                ],
-                index = ["nans", "uniques", "dtypes", "totals"],
-                columns = pd.MultiIndex.from_tuples([(name, col) for col in dataset.columns],
-                                                    names = ["table", "column"])
-            ))
-
-        return (pd.concat(report, axis=1).
-                transpose().
-                reset_index().
-                sort_values(by="table").
-                set_index(["table", "column"]))
-        
+        self.config = {**self.defaultconfig, **self.config}
+       
     
     @exec_time
-    def _duplicates_report(self, datasets):
-        duplicated_tables = []
-        for key in sorted(datasets.keys()):
-            duplicated_tables.append(datasets[key].duplicated().sum())
-        report = pd.DataFrame(data=duplicated_tables,index=sorted(datasets.keys()), columns=["duplicates_total"])
+    def _detect_missing_values(self) -> pd.DataFrame | None:
+
+        """Calculates a percentage of missing values in each column"""
+
+        missing_data = defaultdict()
+        for col in self.df.columns:
+            missing_data[col] = self.df[col].isna().mean() * 100
+        return pd.DataFrame.from_dict(data=missing_data, columns=["missing_values_percentage"], orient="index")
+
+
+    @exec_time
+    def _detect_unique_values(self):
+
+        """Calculates unique values in each column"""
+
+        uniques = defaultdict()
+        for col in self.df.columns:
+            uniques[col] = self.df[col].nunique()
+        return pd.DataFrame.from_dict(data=uniques, orient="index", columns=["unique_values"])
+    
+
+    @exec_time
+    def _detect_outliers(self) -> pd.DataFrame | None:
+
+        """Calculates the amount of outliers in a dataframe based on Isolation Forest"""
+        X = self.df.select_dtypes(include=[np.number])
+        iso = IsolationForest(n_estimators=200, contamination="auto", random_state=42, verbose = 1)
+        preds = iso.fit_predict(X)
+        outliers = {
+            "outliers" : len(preds[preds == -1])
+        }
+        return pd.DataFrame.from_dict(data=outliers, orient="index", columns=["outliers_total"])
+
+        
+    @exec_time
+    def _detect_duplicates(self) -> pd.DataFrame | None:
+
+        """Detects fully duplicated rows"""
+
+        duplicated = {
+            "duplicates": self.df.duplicated().sum()
+        }
+        return pd.DataFrame.from_dict(data=duplicated, orient="index", columns=["duplicated_rows"])
+
+
+    @exec_time
+    def _get_statistics(self) -> pd.DataFrame | None:
+
+        """Calculates statistics"""
+
+        return self.df.select_dtypes(include=[np.number]).describe(self.config["percentiles"])
+
+
+    @exec_time 
+    def _detect_inconsistencies(self) -> pd.DataFrame | None:
+
+        """Detects negative values"""
+
+        negatives = defaultdict()
+        for col in self.df.select_dtypes(include=[np.number]).columns:
+            negatives[col] = len(self.df[self.df[col] < 0])    
+        return pd.DataFrame.from_dict(data=negatives, orient="index", columns=["negative_values"]) 
+    
+
+    @exec_time
+    def render_report(self) -> Dict[str, pd.DataFrame]:
+        report = {
+            "missing_values": self._detect_missing_values(),
+            "unique_values": self._detect_unique_values(),
+            "outliers": self._detect_outliers(),
+            "duplicates": self._detect_duplicates(),
+            "statistics": self._get_statistics(),
+            "inconsistencies": self._detect_inconsistencies()
+        }
         return report
-    
+        
+        
 
-    @exec_time
-    def _distribution_report(self, datasets):
-        dtypes = ["int16", "int32", "int64", "float16", "float32", "float64"]
-        quantiles = [0.01, 0.25, 0.5, 0.75, 0.99]
-        quantiles_tables = []
-        for dataset in datasets:
-            data = datasets[dataset].select_dtypes(include=dtypes)
-            if not data.empty:
-                quantiles_tables.append(data.describe(quantiles))
-        return pd.concat(quantiles_tables, axis=1).transpose()
-    
 
-    @exec_time
-    def _outliers_report(self, distribution_report):
-        l_range = distribution_report["1%"] - distribution_report["min"]
-        mid_range = distribution_report["99%"] - distribution_report["1%"]
-        r_range = distribution_report["max"] - distribution_report["99%"]    
-
-        columns = ["1% l_range", "98% mid_range", "1% r_range"]
-        res = pd.concat([l_range, mid_range, r_range], axis=1)
-        res.columns = columns
-        return res
 
         
 
