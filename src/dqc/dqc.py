@@ -5,7 +5,6 @@ import datetime as dt
 from decorators.exec_time import exec_time
 from typing import Optional, Dict
 import numpy as np
-from scipy import stats
 from sklearn.ensemble import IsolationForest
 
 logging.basicConfig(level=logging.INFO)
@@ -47,7 +46,9 @@ class DQCPipeline:
     def _detect_outliers(self) -> pd.DataFrame | None:
 
         """Calculates the amount of outliers in a dataframe based on Isolation Forest"""
-        X = self.df.select_dtypes(include=[np.number])
+        X_t = self.df.select_dtypes(include=[np.number])
+        cols = [col for col in X_t.columns if "id" not in col]
+        X = X_t[cols]
         iso = IsolationForest(n_estimators=200, contamination="auto", random_state=42, verbose = 1)
         preds = iso.fit_predict(X)
         outliers = {
@@ -76,7 +77,7 @@ class DQCPipeline:
 
 
     @exec_time 
-    def _detect_inconsistencies(self) -> pd.DataFrame | None:
+    def _detect_negatives(self) -> pd.DataFrame | None:
 
         """Detects negative values"""
 
@@ -94,7 +95,7 @@ class DQCPipeline:
             "outliers": self._detect_outliers(),
             "duplicates": self._detect_duplicates(),
             "statistics": self._get_statistics(),
-            "inconsistencies": self._detect_inconsistencies()
+            "inconsistencies": self._detect_negatives()
         }
         return report
         
