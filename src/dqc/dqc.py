@@ -3,7 +3,7 @@ from collections import defaultdict
 import logging 
 import datetime as dt
 from decorators.exec_time import exec_time
-from typing import Optional, Dict
+from typing import Optional, Dict, List
 import numpy as np
 from sklearn.ensemble import IsolationForest
 
@@ -11,42 +11,35 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 class DQCPipeline:
-    def __init__(self, df: pd.DataFrame, config: Optional[Dict] = None):
-        self.df = df
-        self.config = config if config else {}
-        self.defaultconfig = {
-            "percentiles": [0.01, 0.99]
-        }
-        self.config = {**self.defaultconfig, **self.config}
-       
+        
     
     @exec_time
-    def _detect_missing_values(self) -> pd.DataFrame | None:
+    def _detect_missing_values(self, df) -> pd.DataFrame | None:
 
         """Calculates a percentage of missing values in each column"""
 
         missing_data = defaultdict()
-        for col in self.df.columns:
-            missing_data[col] = self.df[col].isna().mean() * 100
+        for col in df.columns:
+            missing_data[col] = df[col].isna().mean() * 100
         return pd.DataFrame.from_dict(data=missing_data, columns=["missing_values_percentage"], orient="index")
 
 
     @exec_time
-    def _detect_unique_values(self):
+    def _detect_unique_values(self, df):
 
         """Calculates unique values in each column"""
 
         uniques = defaultdict()
-        for col in self.df.columns:
-            uniques[col] = self.df[col].nunique()
+        for col in df.columns:
+            uniques[col] = df[col].nunique()
         return pd.DataFrame.from_dict(data=uniques, orient="index", columns=["unique_values"])
     
 
     @exec_time
-    def _detect_outliers(self) -> pd.DataFrame | None:
+    def _detect_outliers(self, df) -> pd.DataFrame | None:
 
         """Calculates the amount of outliers in a dataframe based on Isolation Forest"""
-        X_t = self.df.select_dtypes(include=[np.number])
+        X_t = df.select_dtypes(include=[np.number])
         cols = [col for col in X_t.columns if "id" not in col]
         X = X_t[cols]
         iso = IsolationForest(n_estimators=200, contamination="auto", random_state=42, verbose = 1)
@@ -58,44 +51,44 @@ class DQCPipeline:
 
         
     @exec_time
-    def _detect_duplicates(self) -> pd.DataFrame | None:
+    def _detect_duplicates(self, df) -> pd.DataFrame | None:
 
         """Detects fully duplicated rows"""
 
         duplicated = {
-            "duplicates": self.df.duplicated().sum()
+            "duplicates": df.duplicated().sum()
         }
         return pd.DataFrame.from_dict(data=duplicated, orient="index", columns=["duplicated_rows"])
 
 
     @exec_time
-    def _get_statistics(self) -> pd.DataFrame | None:
+    def _get_statistics(self, df, percentiles:List[float] = [0.01, 0.25, 0.75, 0.99]) -> pd.DataFrame | None:
 
         """Calculates statistics"""
 
-        return self.df.select_dtypes(include=[np.number]).describe(self.config["percentiles"])
+        return df.select_dtypes(include=[np.number]).describe(percentiles)
 
 
     @exec_time 
-    def _detect_negatives(self) -> pd.DataFrame | None:
+    def _detect_negatives(self, df) -> pd.DataFrame | None:
 
         """Detects negative values"""
 
         negatives = defaultdict()
-        for col in self.df.select_dtypes(include=[np.number]).columns:
-            negatives[col] = len(self.df[self.df[col] < 0])    
+        for col in df.select_dtypes(include=[np.number]).columns:
+            negatives[col] = len(df[df[col] < 0])    
         return pd.DataFrame.from_dict(data=negatives, orient="index", columns=["negative_values"]) 
     
 
     @exec_time
-    def render_report(self) -> Dict[str, pd.DataFrame]:
+    def render_report(self, df) -> Dict[str, pd.DataFrame]:
         report = {
-            "missing_values": self._detect_missing_values(),
-            "unique_values": self._detect_unique_values(),
-            "outliers": self._detect_outliers(),
-            "duplicates": self._detect_duplicates(),
-            "statistics": self._get_statistics(),
-            "inconsistencies": self._detect_negatives()
+            "missing_values": self._detect_missing_values(df),
+            "unique_values": self._detect_unique_values(df),
+            "outliers": self._detect_outliers(df),
+            "duplicates": self._detect_duplicates(df),
+            "statistics": self._get_statistics(df),
+            "inconsistencies": self._detect_negatives(df)
         }
         return report
         
