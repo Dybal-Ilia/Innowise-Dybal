@@ -20,7 +20,7 @@ class Plotter:
 
         for col in df.select_dtypes(include=[np.number]):
             plt.figure()
-            plt.hist(df[col], bins = 100)
+            plt.hist(df[col], bins = 100, range = (0, max(df[col])))
             plt.title(f"{col} distribution")
             plt.xlabel(f"{col}")
             plt.ylabel("Amount")
