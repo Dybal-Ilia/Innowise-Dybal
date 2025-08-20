@@ -21,6 +21,8 @@ class DQCPipeline:
         missing_data = defaultdict()
         for col in df.columns:
             missing_data[col] = df[col].isna().mean() * 100
+
+        logger.info(f"Missing values detection completed successfully - {dt.datetime.now()}")
         return pd.DataFrame.from_dict(data=missing_data, columns=["missing_values_percentage"], orient="index")
 
 
@@ -32,6 +34,8 @@ class DQCPipeline:
         uniques = defaultdict()
         for col in df.columns:
             uniques[col] = df[col].nunique()
+        
+        logger.info(f"Unique values detected successfully - {dt.datetime.now()}")
         return pd.DataFrame.from_dict(data=uniques, orient="index", columns=["unique_values"])
     
 
@@ -47,6 +51,8 @@ class DQCPipeline:
         outliers = {
             "outliers" : len(preds[preds == -1])
         }
+
+        logger.info(f"Outliers detected successfully - {dt.datetime.now()}")
         return pd.DataFrame.from_dict(data=outliers, orient="index", columns=["outliers_total"])
 
         
@@ -58,6 +64,8 @@ class DQCPipeline:
         duplicated = {
             "duplicates": df.duplicated().sum()
         }
+
+        logger.info(f"Duplicates detectes successfully - {dt.datetime.now()}")
         return pd.DataFrame.from_dict(data=duplicated, orient="index", columns=["duplicated_rows"])
 
 
@@ -66,17 +74,20 @@ class DQCPipeline:
 
         """Calculates statistics"""
 
+        logger.info(f"Statistics calculated successfully - {dt.datetime.now()}")
         return df.select_dtypes(include=[np.number]).describe(percentiles)
 
 
     @exec_time 
-    def _detect_negatives(self, df) -> pd.DataFrame | None:
+    def _detect_inconsistancies(self, df) -> pd.DataFrame | None:
 
-        """Detects negative values"""
+        """Detects Inconsistancies"""
 
         negatives = defaultdict()
         for col in df.select_dtypes(include=[np.number]).columns:
             negatives[col] = len(df[df[col] < 0])    
+
+        logger.info(f"Inconsistancies detected successfully - {dt.datetime.now()}")
         return pd.DataFrame.from_dict(data=negatives, orient="index", columns=["negative_values"]) 
     
 
@@ -88,8 +99,9 @@ class DQCPipeline:
             "outliers": self._detect_outliers(df),
             "duplicates": self._detect_duplicates(df),
             "statistics": self._get_statistics(df),
-            "inconsistencies": self._detect_negatives(df)
+            "inconsistencies": self._detect_inconsistancies(df)
         }
+        logger.info(f"Report generated successfully - {dt.datetime.now()}")
         return report
         
         
