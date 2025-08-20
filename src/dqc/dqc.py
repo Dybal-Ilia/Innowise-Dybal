@@ -43,9 +43,7 @@ class DQCPipeline:
     def _detect_outliers(self, df) -> pd.DataFrame | None:
 
         """Calculates the amount of outliers in a dataframe based on Isolation Forest"""
-        X_t = df.select_dtypes(include=[np.number])
-        cols = [col for col in X_t.columns if "id" not in col]
-        X = X_t[cols]
+        X = df[["item_price", "item_cnt_day"]]
         iso = IsolationForest(n_estimators=200, contamination="auto", random_state=42, verbose = 1)
         preds = iso.fit_predict(X)
         outliers = {
@@ -99,7 +97,7 @@ class DQCPipeline:
             "outliers": self._detect_outliers(df),
             "duplicates": self._detect_duplicates(df),
             "statistics": self._get_statistics(df),
-            "inconsistencies": self._detect_inconsistancies(df)
+            "inconsistancies": self._detect_inconsistancies(df)
         }
         logger.info(f"Report generated successfully - {dt.datetime.now()}")
         return report
