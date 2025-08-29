@@ -74,6 +74,55 @@ class DQCPipeline:
         return outliers_report
 
         
+    def _check_datatypes(self, df:pd.DataFrame):
+        analysis = []
+
+        for col in df.columns:
+            col_data = df[col]
+            current_dtype = col_data.dtype
+
+            unique_types = set(type(x) for x in col_data.dropna())
+            mixed_types = len(unique_types) > 1
+
+            numeric_as_str = False
+            if current_dtype == object:
+                try:
+                    pd.to_numeric(col_data.dropna())
+                    numeric_as_str = True
+                except:
+                    pass
+
+            possible_datetime = False
+            if current_dtype == object:
+                try:
+                    pd.to_datetime(col_data.dropna(), errors='raise')
+                    possible_datetime = True
+                except:
+                    pass
+
+            suggested_dtype = current_dtype
+            if numeric_as_str:
+                numeric_values = pd.to_numeric(col_data, errors='coerce')
+                if (numeric_values.dropna() % 1 == 0).all():
+                    suggested_dtype = 'int'
+                else:
+                    suggested_dtype = 'float'
+            elif possible_datetime:
+                suggested_dtype = 'datetime'
+
+            analysis.append({
+                "column": col,
+                "current_dtype": current_dtype,
+                "mixed_types": mixed_types,
+                "numeric_as_string": numeric_as_str,
+                "possible_datetime": possible_datetime,
+                "suggested_dtype": suggested_dtype
+                    })
+            
+        report = pd.DataFrame(analysis).set_index("column")
+        return report
+
+
     @exec_time
     def _detect_duplicates(self, df) -> pd.DataFrame:
 
