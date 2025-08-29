@@ -40,22 +40,42 @@ class DQCPipeline:
     
 
     @exec_time
-    def _detect_outliers(self, df) -> pd.DataFrame | None:
+    def _detect_outliers(self, df:pd.DataFrame) -> pd.DataFrame | None:
 
-        """Calculates the amount of outliers in a dataframe based on Isolation Forest"""
-        X = df[["item_price", "item_cnt_day"]]
-        iso = IsolationForest(n_estimators=200, contamination="auto", random_state=42, verbose = 1)
-        preds = iso.fit_predict(X)
-        outliers = {
-            "outliers" : len(preds[preds == -1])
-        }
+        """Provides statistical information on potential outliers. Calculates Q1, Q3, IQR,
+        lower bound, upper bound, percentage of outliers based on IQR, min, max, 1% and 99%"""
 
-        logger.info(f"Outliers detected successfully - {dt.datetime.now()}")
-        return pd.DataFrame.from_dict(data=outliers, orient="index", columns=["outliers_total"])
+        data = []
+        numeric_cols = df.select_dtypes(include=[np.number]).columns
+        if not numeric_cols:
+            logger.info(f'No numeric columns provided - {dt.datetime.now()}')
+
+        for col in numeric_cols:
+            Q1 = df[col].quantile(0.25)
+            Q3 = df[col].quantile(0.75)
+            IQR = Q3 - Q1
+            lower_bound = Q1 - 1.5 * IQR
+            upper_bound = Q3 + 1.5 * IQR
+            outlier_mapping = {
+                'Q1': Q1,
+                'Q3': Q3,
+                'IQR': IQR,
+                'lower_bound': lower_bound,
+                'upper_bound': upper_bound,
+                'outliers_percentage' : len(df[(df[col] < lower_bound) | (df[col] > upper_bound)]) / len(df) * 100,
+                'min_val': df[col].min(),
+                'max_val': df[col].max(),
+                '1%_percentile' : df[col].quantile(0.01),
+                '99%_percentile': df[col].quantile(.99)
+                }
+            data.append(outlier_mapping)
+
+        outliers_report = pd.DataFrame(data=data, index=df.select_dtypes(include=np.number).columns)
+        return outliers_report
 
         
     @exec_time
-    def _detect_duplicates(self, df) -> pd.DataFrame | None:
+    def _detect_duplicates(self, df) -> pd.DataFrame:
 
         """Detects fully duplicated rows"""
 
