@@ -167,16 +167,12 @@ class DQCPipeline:
 
 
     @exec_time
-    def _check_duplicates(self, df) -> pd.DataFrame:
+    def check_duplicates(tables:Dict[str, pd.DataFrame]) -> pd.DataFrame:
 
-        """Detects fully duplicated rows"""
-
-        duplicated = {
-            "duplicates": df.duplicated().sum()
-        }
-
-        logger.info(f"Duplicates detectes successfully - {dt.datetime.now()}")
-        return pd.DataFrame.from_dict(data=duplicated, orient="index", columns=["duplicated_rows"])
+        duplicates = {}
+        for table, df in tables.items():
+            duplicates[table] = df.duplicated().sum()           
+        return pd.DataFrame.from_dict(data=duplicates, orient="index", columns=["duplicated_rows"])
 
 
     @exec_time
