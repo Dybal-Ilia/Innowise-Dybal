@@ -16,10 +16,6 @@ def donwload_data(url):
 
     return dataframes
 
-def merge_data(dataframes: Dict[str, pd.DataFrame]):
-        df = dataframes["sales_train"].merge(dataframes["items"], on='item_id', how='left').merge(dataframes["item_categories"], on='item_category_id', how='left').merge(dataframes["shops"], on='shop_id', how='left')
-        return df
-
 
 
 
