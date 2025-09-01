@@ -14,7 +14,7 @@ class DQCPipeline:
         
     
     @exec_time
-    def _detect_missing_values(self, df) -> pd.DataFrame | None:
+    def _check_missing_values(self, df) -> pd.DataFrame | None:
 
         """Calculates a percentage of missing values in each column"""
 
@@ -27,7 +27,7 @@ class DQCPipeline:
 
 
     @exec_time
-    def _detect_unique_values(self, df):
+    def _check_unique_values(self, df):
 
         """Calculates unique values in each column"""
 
@@ -40,15 +40,16 @@ class DQCPipeline:
     
 
     @exec_time
-    def _detect_outliers(self, df:pd.DataFrame) -> pd.DataFrame | None:
+    def _check_outliers(self, df:pd.DataFrame) -> pd.DataFrame | None:
 
         """Provides statistical information on potential outliers. Calculates Q1, Q3, IQR,
         lower bound, upper bound, percentage of outliers based on IQR, min, max, 1% and 99%"""
 
         data = []
         numeric_cols = df.select_dtypes(include=[np.number]).columns
-        if not numeric_cols:
+        if  numeric_cols.empty:
             logger.info(f'No numeric columns provided - {dt.datetime.now()}')
+            return None
 
         for col in numeric_cols:
             Q1 = df[col].quantile(0.25)
@@ -70,7 +71,7 @@ class DQCPipeline:
                 }
             data.append(outlier_mapping)
 
-        outliers_report = pd.DataFrame(data=data, index=df.select_dtypes(include=np.number).columns)
+        outliers_report = pd.DataFrame(data=data, index=numeric_cols)
         return outliers_report
 
         
@@ -124,7 +125,7 @@ class DQCPipeline:
 
 
     @exec_time
-    def _detect_duplicates(self, df) -> pd.DataFrame:
+    def _check_duplicates(self, df) -> pd.DataFrame:
 
         """Detects fully duplicated rows"""
 
@@ -137,7 +138,7 @@ class DQCPipeline:
 
 
     @exec_time
-    def _get_statistics(self, df, percentiles:List[float] = [0.01, 0.25, 0.75, 0.99]) -> pd.DataFrame | None:
+    def _check_statistics(self, df, percentiles:List[float] = [0.01, 0.25, 0.75, 0.99]) -> pd.DataFrame | None:
 
         """Calculates statistics"""
 
@@ -145,18 +146,36 @@ class DQCPipeline:
         return df.select_dtypes(include=[np.number]).describe(percentiles)
 
 
-    @exec_time 
-    def _detect_inconsistancies(self, df) -> pd.DataFrame | None:
+    @exec_time
+    def check_relationships(tables: Dict[str, pd.DataFrame]) -> pd.DataFrame:
 
-        """Detects Inconsistancies"""
+        results = []
+        table_names = list(tables.keys())
 
-        negatives = defaultdict()
-        for col in df.select_dtypes(include=[np.number]).columns:
-            negatives[col] = len(df[df[col] < 0])    
+        for i in range(len(table_names)):
+            for j in range(i + 1, len(table_names)):
+                t1_name, t2_name = table_names[i], table_names[j]
+                t1, t2 = tables[t1_name], tables[t2_name]
+                
+                common_cols = set(t1.columns).intersection(set(t2.columns))
+                for col in common_cols:
+                    left_ids = set(t1[col].dropna().unique())
+                    right_ids = set(t2[col].dropna().unique())
 
-        logger.info(f"Inconsistancies detected successfully - {dt.datetime.now()}")
-        return pd.DataFrame.from_dict(data=negatives, orient="index", columns=["negative_values"]) 
-    
+                    intersect = left_ids & right_ids
+                    left_only = left_ids - right_ids
+                    right_only = right_ids - left_ids
+
+                    results.append({
+                        "relation": f"{t1_name}, {t2_name} ON {col}",
+                        "left_only": len(left_only),
+                        "intersect": len(intersect),
+                        "right_only": len(right_only)
+                    })
+
+        df_results = pd.DataFrame(results)
+        return df_results
+
 
     @exec_time
     def render_report(self, df) -> Dict[str, pd.DataFrame]:
@@ -164,9 +183,10 @@ class DQCPipeline:
             "missing_values": self._detect_missing_values(df),
             "unique_values": self._detect_unique_values(df),
             "outliers": self._detect_outliers(df),
+            "datatypes": self._check_datatypes(df),
             "duplicates": self._detect_duplicates(df),
             "statistics": self._get_statistics(df),
-            "inconsistancies": self._detect_inconsistancies(df)
+            "inconsistancies": self._detect_inconsistancies(df),
         }
         logger.info(f"Report generated successfully - {dt.datetime.now()}")
         return report
