@@ -23,6 +23,7 @@ class DQCPipeline:
         validation_report['uniques'] = self._check_unique_values(tables)
         validation_report['datatypes'] = self._check_datatypes(tables)
         validation_report['relationships'] = self._check_relationships(tables)
+        validation_report['duplicates'] = self._check_duplicates(tables)
 
         return validation_report
     
