@@ -17,20 +17,56 @@ logger = logging.getLogger(__name__)
 
 class ETL:
     
-    def __init__(self):
-        self.default_pipeline = {
-            "handle_missings": self._handle_missing_values,
-            "handle_duplicates": self._handle_duplicates,
-            "handle_negatives": self._handle_negatives,
-            "process_categoricals": self._process_cat_names,
-            "process_date": self._process_date_feature,
-            "extend_features": self._extend_features
-        }
+
+
+    def __init__(self, map_pipes, filter_pipes):
+        self.map_pipes = map_pipes
+        self.filter_pipes = filter_pipes
         
-    @exec_time
+
+    def apply_map(self, tables):
+        return self._apply_pipes(tables, self.map_pipes)
+
+
+    def apply_filter(self, tables):
+        return self._apply_pipes(tables, self.filter_pipes)
+    
+
+    def _apply_pipes(self, tables, pipes):
+        for table in tables:
+            if table in pipes:
+                pipe = pipes[table]
+                tables[table] = self._apply_pipes(tables[table], pipe)
+        return tables
+    
+    def _apply_pipe(self, table, pipe):
+        for func in pipe:
+            table = func(table)
+        return table
+    
+
+    def apply_merge(self, tables):
+        merged_tables_train = (
+            tables['sales_train']
+            .merge(tables['items'], on = 'item_id', how = 'left')
+            .merge(tables['item_categories'], on = 'item_category_id', how = 'left')
+            .merge(tables['shops'], on = 'shop_id', how = 'left')
+            )
+        
+        merged_tables_test = (
+            tables['test']
+            .merge(tables['items'], on = 'item_id', how = 'left')
+            .merge(tables['item_categories'], on = 'item_category_id', how = 'left')
+            .merge(tables['shops'], on = 'shop_id', how = 'left')
+        )
+
+        return merged_tables_train, merged_tables_test
+
+
+
     def extract(self, url:str):
 
-        """Downloads data from url and merges it to one dataframe"""
+        """Downloads data from the provided url"""
 
         data = donwload_data(url=url)
         return merge_data(data)
