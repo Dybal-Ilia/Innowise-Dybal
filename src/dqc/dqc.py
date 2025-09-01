@@ -92,7 +92,7 @@ class DQCPipeline:
     
 
     @exec_time
-    def _check_outliers(tables: Dict[str, pd.DataFrame]) -> pd.DataFrame:
+    def _check_outliers(self, tables: Dict[str, pd.DataFrame]) -> pd.DataFrame:
         report = []
 
         for table_name, df in tables.items():
@@ -133,7 +133,7 @@ class DQCPipeline:
         return result.set_index(["table", "column"])
 
 
-    def _suggest_dtype(series: pd.Series) -> np.dtype | str:
+    def _suggest_dtype(self, series: pd.Series) -> np.dtype | str:
 
         """The method is a helper method for datatypes validation. Suggests datatypes
         for each column over all provided tables"""
@@ -192,7 +192,7 @@ class DQCPipeline:
 
 
     @exec_time
-    def _check_duplicates(tables:Dict[str, pd.DataFrame]) -> pd.DataFrame:
+    def _check_duplicates(self, tables:Dict[str, pd.DataFrame]) -> pd.DataFrame:
 
         """The method validates tables for fully duplicated rows. Returns 
         a pandas DataFrame as a report"""
@@ -204,7 +204,7 @@ class DQCPipeline:
 
 
     @exec_time
-    def _check_statistics(tables: Dict[str, pd.DataFrame], percentiles: List[float] = [0.01, 0.25, 0.75, 0.99]) -> pd.DataFrame:
+    def _check_statistics(self, tables: Dict[str, pd.DataFrame], percentiles: List[float] = [0.01, 0.25, 0.75, 0.99]) -> pd.DataFrame:
 
         """The method provides statistical information on each numeric column in every table. Supports custom
         percentiles statistics (0.01, 0.25, 0.75, 0.99 are used by default). Returns a pandas DataFrame as a
@@ -223,7 +223,7 @@ class DQCPipeline:
 
 
     @exec_time
-    def _check_relationships(tables: Dict[str, pd.DataFrame]) -> pd.DataFrame:
+    def _check_relationships(self, tables: Dict[str, pd.DataFrame]) -> pd.DataFrame:
 
         """Validates tables on orphans and overlaps in a SQL-like join manner.
         Returns a pandas DataFrame as a report"""
