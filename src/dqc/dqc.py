@@ -176,12 +176,17 @@ class DQCPipeline:
 
 
     @exec_time
-    def _check_statistics(self, df, percentiles:List[float] = [0.01, 0.25, 0.75, 0.99]) -> pd.DataFrame | None:
+    def check_statistics(tables: Dict[str, pd.DataFrame], percentiles: List[float] = [0.01, 0.25, 0.75, 0.99]) -> pd.DataFrame:
+        report = []
 
-        """Calculates statistics"""
+        for table_name, df in tables.items():
+            desc = df.describe(percentiles=percentiles).transpose()
+            desc["table_name"] = table_name
+            desc["column_name"] = desc.index
+            report.append(desc)
 
-        logger.info(f"Statistics calculated successfully - {dt.datetime.now()}")
-        return df.select_dtypes(include=[np.number]).describe(percentiles)
+        result = pd.concat(report, ignore_index=True)
+        return result.set_index(["table_name", "column_name"])
 
 
     @exec_time
