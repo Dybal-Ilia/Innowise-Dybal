@@ -12,7 +12,12 @@ logger = logging.getLogger(__name__)
 class DQCPipeline:
         
 
-    def validation_report(self, tables:Dict[str, pd.DataFrame]):
+    def validation_report(self, tables:Dict[str, pd.DataFrame]) -> Dict[str, pd.DataFrame]:
+
+        """The method creates a validation report containing reports on missing data, unique values,
+        datatatypes and table relationships over all tables provided in tables argument. Returns a 
+        dictionary of {report name : report as pandas DataFrame}"""
+
         validation_report = {}
         validation_report['missings'] = self._check_missing_values(tables)
         validation_report['uniques'] = self._check_unique_values(tables)
@@ -22,7 +27,12 @@ class DQCPipeline:
         return validation_report
     
 
-    def statistics_report(self, tables:Dict[str, pd.DataFrame]):
+    def statistics_report(self, tables:Dict[str, pd.DataFrame]) -> Dict[str, pd.DataFrame]:
+
+        """The method creates a statistics report containing reports on possible outliers and
+        overall statistics on every table provided in tables argument. Returns a dictionary
+        of {report name : report as pandas DataFrame}"""
+
         statistics_report = {}
         statistics_report['outliers'] = self._check_outliers(tables)
         statistics_report['statistics'] = self._check_statistics(tables)
@@ -30,7 +40,11 @@ class DQCPipeline:
         return statistics_report
     
 
-    def render_report(self, val_rep, stats_rep):
+    def render_report(self, val_rep, stats_rep) -> Dict[str, Dict[str, pd.DataFrame]]:
+
+        """The method creates a joint report from validation report and statistics report.
+        Returns a dictionary of {general report name : {report name : report as pandas DataFrame}}"""
+
         report = {
             'validation_report' : val_rep,
             'statistics_report' : stats_rep
@@ -40,7 +54,11 @@ class DQCPipeline:
         
      
     @exec_time
-    def _check_missing_values(self, tables:Dict[str, pd.DataFrame]):
+    def _check_missing_values(self, tables:Dict[str, pd.DataFrame]) -> pd.DataFrame:
+
+        """The method validates tables for missing values percentage over all provided tables in each column.
+        Returns a pandas DataFrame as a missing values report. """
+
         report = []
         for t_name, df in tables.items():
             missings = df.isna().sum(0) / len(df)
@@ -58,7 +76,11 @@ class DQCPipeline:
 
 
     @exec_time
-    def check_unique_values(self, tables:Dict[str, pd.DataFrame]):
+    def _check_unique_values(self, tables:Dict[str, pd.DataFrame]) -> pd.DataFrame:
+
+        """The method validates tables for the amount of unique values over all provided tables in each column.
+        Returns a pandas DataFrame as a unique values report."""
+
         report = []
         for t_name, df in tables.items():
             uniques = df.nunique()
@@ -82,7 +104,7 @@ class DQCPipeline:
     
 
     @exec_time
-    def _check_outliers(self, df:pd.DataFrame) -> pd.DataFrame | None:
+    def _check_outliers(self, df:pd.DataFrame) -> pd.DataFrame:
 
         """Provides statistical information on potential outliers. Calculates Q1, Q3, IQR,
         lower bound, upper bound, percentage of outliers based on IQR, min, max, 1% and 99%"""
@@ -117,7 +139,11 @@ class DQCPipeline:
         return outliers_report
 
 
-    def _suggest_dtype(series: pd.Series):
+    def _suggest_dtype(series: pd.Series) -> np.dtype | str:
+
+        """The method is a helper method for datatypes validation. Suggests datatypes
+        for each column over all provided tables"""
+
         if pd.api.types.is_integer_dtype(series):
             return pd.to_numeric(series, downcast="integer").dtype
         elif pd.api.types.is_float_dtype(series):
@@ -135,6 +161,11 @@ class DQCPipeline:
             return series.dtype
 
     def _check_datatypes(self, tables: Dict[str, pd.DataFrame]) -> pd.DataFrame:
+
+        """The method validates datatypes over all columns in each table. Provides 
+        current dtype, infered dtype, checks whether the column is a mixed-type
+        and suggests datatypes. Returns pandas DataFrame as a report"""
+
         report = []
 
         for t_name, df in tables.items():
@@ -167,7 +198,10 @@ class DQCPipeline:
 
 
     @exec_time
-    def check_duplicates(tables:Dict[str, pd.DataFrame]) -> pd.DataFrame:
+    def _check_duplicates(tables:Dict[str, pd.DataFrame]) -> pd.DataFrame:
+
+        """The method validates tables for fully duplicated rows. Returns 
+        a pandas DataFrame as a report"""
 
         duplicates = {}
         for table, df in tables.items():
@@ -176,7 +210,12 @@ class DQCPipeline:
 
 
     @exec_time
-    def check_statistics(tables: Dict[str, pd.DataFrame], percentiles: List[float] = [0.01, 0.25, 0.75, 0.99]) -> pd.DataFrame:
+    def _check_statistics(tables: Dict[str, pd.DataFrame], percentiles: List[float] = [0.01, 0.25, 0.75, 0.99]) -> pd.DataFrame:
+
+        """The method provides statistical information on each numeric column in every table. Supports custom
+        percentiles statistics (0.01, 0.25, 0.75, 0.99 are used by default). Returns a pandas DataFrame as a
+        report."""
+
         report = []
 
         for table_name, df in tables.items():
@@ -191,6 +230,9 @@ class DQCPipeline:
 
     @exec_time
     def _check_relationships(tables: Dict[str, pd.DataFrame]) -> pd.DataFrame:
+
+        """Validates tables on orphans and overlaps in a SQL-like join manner.
+        Returns a pandas DataFrame as a report"""
 
         results = []
         table_names = list(tables.keys())
