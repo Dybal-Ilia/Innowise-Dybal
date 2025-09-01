@@ -40,29 +40,45 @@ class DQCPipeline:
         
      
     @exec_time
-    def _check_missing_values(self, df) -> pd.DataFrame | None:
+    def _check_missing_values(self, tables:Dict[str, pd.DataFrame]):
+        report = []
+        for t_name, df in tables.items():
+            missings = df.isna().sum(0) / len(df)
+            report.append(pd.DataFrame(
+                data=[missings.values],
+                index=["missings_percentage"],
+                columns=pd.MultiIndex.from_tuples([(t_name, col) for col in df.columns],names=["table_name", "column_name"])))
 
-        """Calculates a percentage of missing values in each column"""
-
-        missing_data = defaultdict()
-        for col in df.columns:
-            missing_data[col] = df[col].isna().mean() * 100
-
-        logger.info(f"Missing values detection completed successfully - {dt.datetime.now()}")
-        return pd.DataFrame.from_dict(data=missing_data, columns=["missing_values_percentage"], orient="index")
+        return (pd.concat(report, axis=1).
+                transpose().
+                reset_index().
+                sort_values('table_name').
+                set_index(["table_name", "column_name"])
+                )
 
 
     @exec_time
-    def _check_unique_values(self, df):
+    def check_unique_values(self, tables:Dict[str, pd.DataFrame]):
+        report = []
+        for t_name, df in tables.items():
+            uniques = df.nunique()
 
-        """Calculates unique values in each column"""
+            report.append(pd.DataFrame(
+                data=[
+                    uniques.values
+                ],
+                index=["unique_values"],
+                columns=pd.MultiIndex.from_tuples([(t_name, col) for col in df.columns],
+                                                  names=[
+                                                  "table_name", "column_name"])
+            ))
 
-        uniques = defaultdict()
-        for col in df.columns:
-            uniques[col] = df[col].nunique()
-        
-        logger.info(f"Unique values detected successfully - {dt.datetime.now()}")
-        return pd.DataFrame.from_dict(data=uniques, orient="index", columns=["unique_values"])
+        return (pd.concat(report, axis=1).
+                transpose().
+                reset_index().
+                sort_values('table_name').
+                set_index(["table_name", "column_name"])
+                )
     
 
     @exec_time
@@ -100,54 +116,54 @@ class DQCPipeline:
         outliers_report = pd.DataFrame(data=data, index=numeric_cols)
         return outliers_report
 
-        
-    def _check_datatypes(self, df:pd.DataFrame):
-        analysis = []
 
-        for col in df.columns:
-            col_data = df[col]
-            current_dtype = col_data.dtype
+    def _suggest_dtype(series: pd.Series):
+        if pd.api.types.is_integer_dtype(series):
+            return pd.to_numeric(series, downcast="integer").dtype
+        elif pd.api.types.is_float_dtype(series):
+            return pd.to_numeric(series, downcast="float").dtype
+        elif pd.api.types.is_bool_dtype(series):
+            return "boolean"
+        elif pd.api.types.is_object_dtype(series):
+            if series.nunique() / len(series) < 0.5:
+                return "category"
+            else:
+                return "object"
+        elif pd.api.types.is_datetime64_any_dtype(series):
+            return "datetime64[ns]"
+        else:
+            return series.dtype
 
-            unique_types = set(type(x) for x in col_data.dropna())
-            mixed_types = len(unique_types) > 1
+    def _check_datatypes(self, tables: Dict[str, pd.DataFrame]) -> pd.DataFrame:
+        report = []
 
-            numeric_as_str = False
-            if current_dtype == object:
-                try:
-                    pd.to_numeric(col_data.dropna())
-                    numeric_as_str = True
-                except:
-                    pass
+        for t_name, df in tables.items():
+            current_dtypes = df.dtypes.astype(str).values
+            infer_dtypes = df.infer_objects().dtypes.astype(str).values
 
-            possible_datetime = False
-            if current_dtype == object:
-                try:
-                    pd.to_datetime(col_data.dropna(), errors='raise')
-                    possible_datetime = True
-                except:
-                    pass
+            is_mixed = current_dtypes != infer_dtypes
 
-            suggested_dtype = current_dtype
-            if numeric_as_str:
-                numeric_values = pd.to_numeric(col_data, errors='coerce')
-                if (numeric_values.dropna() % 1 == 0).all():
-                    suggested_dtype = 'int'
-                else:
-                    suggested_dtype = 'float'
-            elif possible_datetime:
-                suggested_dtype = 'datetime'
+            suggested_dtypes = [str(self._suggest_dtype(df[col])) for col in df.columns]
 
-            analysis.append({
-                "column": col,
-                "current_dtype": current_dtype,
-                "mixed_types": mixed_types,
-                "numeric_as_string": numeric_as_str,
-                "possible_datetime": possible_datetime,
-                "suggested_dtype": suggested_dtype
-                    })
-            
-        report = pd.DataFrame(analysis).set_index("column")
-        return report
+            report.append(
+                pd.DataFrame(
+                    data=[current_dtypes, infer_dtypes, is_mixed, suggested_dtypes],
+                    index=["current_dtype", "inferred_dtype", "is_mixed", "suggested_dtype"],
+                    columns=pd.MultiIndex.from_tuples(
+                        [(t_name, col) for col in df.columns],
+                        names=["table_name", "column_name"]
+                    )
+                )
+            )
+
+        return (
+            pd.concat(report, axis=1)
+            .transpose()
+            .reset_index()
+            .sort_values("table_name")
+            .set_index(["table_name", "column_name"])
+        )
+
 
 
     @exec_time
