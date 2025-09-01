@@ -60,19 +60,16 @@ class DQCPipeline:
         Returns a pandas DataFrame as a missing values report. """
 
         report = []
-        for t_name, df in tables.items():
-            missings = df.isna().sum(0) / len(df)
-            report.append(pd.DataFrame(
-                data=[missings.values],
-                index=["missings_percentage"],
-                columns=pd.MultiIndex.from_tuples([(t_name, col) for col in df.columns],names=["table_name", "column_name"])))
 
-        return (pd.concat(report, axis=1).
-                transpose().
-                reset_index().
-                sort_values('table_name').
-                set_index(["table_name", "column_name"])
-                )
+        for table_name, df in tables.items():
+            missings = df.isna().sum() / len(df)
+            missings_df = missings.reset_index()
+            missings_df.columns = ["column_name", "missings_percentage"]
+            missings_df["table_name"] = table_name
+            report.append(missings_df)
+
+        result = pd.concat(report, ignore_index=True)
+        return result.set_index(["table_name", "column_name"])
 
 
     @exec_time
@@ -82,61 +79,58 @@ class DQCPipeline:
         Returns a pandas DataFrame as a unique values report."""
 
         report = []
-        for t_name, df in tables.items():
+
+        for table_name, df in tables.items():
             uniques = df.nunique()
+            uniques_df = uniques.reset_index()
+            uniques_df.columns = ["column_name", "unique_values"]
+            uniques_df["table_name"] = table_name
+            report.append(uniques_df)
 
-            report.append(pd.DataFrame(
-                data=[
-                    uniques.values
-                ],
-                index=["unique_values"],
-                columns=pd.MultiIndex.from_tuples([(t_name, col) for col in df.columns],
-                                                  names=[
-                                                  "table_name", "column_name"])
-            ))
-
-        return (pd.concat(report, axis=1).
-                transpose().
-                reset_index().
-                sort_values('table_name').
-                set_index(["table_name", "column_name"])
-                )
+        result = pd.concat(report, ignore_index=True)
+        return result.set_index(["table_name", "column_name"])
     
 
     @exec_time
-    def _check_outliers(self, df:pd.DataFrame) -> pd.DataFrame:
+    def _check_outliers(tables: Dict[str, pd.DataFrame]) -> pd.DataFrame:
+        report = []
 
-        """Provides statistical information on potential outliers. Calculates Q1, Q3, IQR,
-        lower bound, upper bound, percentage of outliers based on IQR, min, max, 1% and 99%"""
+        for table_name, df in tables.items():
+            numeric_cols = df.select_dtypes(include=[np.number]).columns
+            if numeric_cols.empty:
+                logger.info(f'No numeric columns in table "{table_name}" - {dt.datetime.now()}')
+                continue
 
-        data = []
-        numeric_cols = df.select_dtypes(include=[np.number]).columns
-        if  numeric_cols.empty:
-            logger.info(f'No numeric columns provided - {dt.datetime.now()}')
-            return None
+            for col in numeric_cols:
+                Q1 = df[col].quantile(0.25)
+                Q3 = df[col].quantile(0.75)
+                IQR = Q3 - Q1
+                lower_bound = Q1 - 1.5 * IQR
+                upper_bound = Q3 + 1.5 * IQR
+                outlier_percentage = len(df[(df[col] < lower_bound) | (df[col] > upper_bound)]) / len(df) * 100
 
-        for col in numeric_cols:
-            Q1 = df[col].quantile(0.25)
-            Q3 = df[col].quantile(0.75)
-            IQR = Q3 - Q1
-            lower_bound = Q1 - 1.5 * IQR
-            upper_bound = Q3 + 1.5 * IQR
-            outlier_mapping = {
-                'Q1': Q1,
-                'Q3': Q3,
-                'IQR': IQR,
-                'lower_bound': lower_bound,
-                'upper_bound': upper_bound,
-                'outliers_percentage' : len(df[(df[col] < lower_bound) | (df[col] > upper_bound)]) / len(df) * 100,
-                'min_val': df[col].min(),
-                'max_val': df[col].max(),
-                '1%_percentile' : df[col].quantile(0.01),
-                '99%_percentile': df[col].quantile(.99)
+                outlier_mapping = {
+                    'table': table_name,
+                    'column': col,
+                    'Q1': Q1,
+                    'Q3': Q3,
+                    'IQR': IQR,
+                    'lower_bound': lower_bound,
+                    'upper_bound': upper_bound,
+                    'outliers_percentage': outlier_percentage,
+                    'min_val': df[col].min(),
+                    'max_val': df[col].max(),
+                    '1%_percentile': df[col].quantile(0.01),
+                    '99%_percentile': df[col].quantile(0.99)
                 }
-            data.append(outlier_mapping)
+                report.append(outlier_mapping)
 
-        outliers_report = pd.DataFrame(data=data, index=numeric_cols)
-        return outliers_report
+        if not report:
+            logger.info(f'No numeric data found in any table - {dt.datetime.now()}')
+            return pd.DataFrame()
+
+        result = pd.DataFrame(report)
+        return result.set_index(["table", "column"])
 
 
     def _suggest_dtype(series: pd.Series) -> np.dtype | str:
