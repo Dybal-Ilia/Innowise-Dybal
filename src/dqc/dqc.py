@@ -5,14 +5,40 @@ import datetime as dt
 from decorators.exec_time import exec_time
 from typing import Optional, Dict, List
 import numpy as np
-from sklearn.ensemble import IsolationForest
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 class DQCPipeline:
         
+
+    def validation_report(self, tables:Dict[str, pd.DataFrame]):
+        validation_report = {}
+        validation_report['missings'] = self._check_missing_values(tables)
+        validation_report['uniques'] = self._check_unique_values(tables)
+        validation_report['datatypes'] = self._check_datatypes(tables)
+        validation_report['relationships'] = self._check_relationships(tables)
+
+        return validation_report
     
+
+    def statistics_report(self, tables:Dict[str, pd.DataFrame]):
+        statistics_report = {}
+        statistics_report['outliers'] = self._check_outliers(tables)
+        statistics_report['statistics'] = self._check_statistics(tables)
+
+        return statistics_report
+    
+
+    def render_report(self, val_rep, stats_rep):
+        report = {
+            'validation_report' : val_rep,
+            'statistics_report' : stats_rep
+        }
+        return report
+
+        
+     
     @exec_time
     def _check_missing_values(self, df) -> pd.DataFrame | None:
 
@@ -147,7 +173,7 @@ class DQCPipeline:
 
 
     @exec_time
-    def check_relationships(tables: Dict[str, pd.DataFrame]) -> pd.DataFrame:
+    def _check_relationships(tables: Dict[str, pd.DataFrame]) -> pd.DataFrame:
 
         results = []
         table_names = list(tables.keys())
@@ -175,21 +201,6 @@ class DQCPipeline:
 
         df_results = pd.DataFrame(results)
         return df_results
-
-
-    @exec_time
-    def render_report(self, df) -> Dict[str, pd.DataFrame]:
-        report = {
-            "missing_values": self._detect_missing_values(df),
-            "unique_values": self._detect_unique_values(df),
-            "outliers": self._detect_outliers(df),
-            "datatypes": self._check_datatypes(df),
-            "duplicates": self._detect_duplicates(df),
-            "statistics": self._get_statistics(df),
-            "inconsistancies": self._detect_inconsistancies(df),
-        }
-        logger.info(f"Report generated successfully - {dt.datetime.now()}")
-        return report
         
         
 
