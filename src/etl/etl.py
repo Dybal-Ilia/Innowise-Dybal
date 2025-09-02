@@ -5,6 +5,7 @@ import logging
 from decorators.exec_time import exec_time
 import datetime as dt
 from typing import Dict, List, Tuple, Callable, Any
+from collections import defaultdict
 import opendatasets as od
 from dataloader.dataloader import donwload_data
 
@@ -23,10 +24,14 @@ class ETL:
         return tables
     
 
-    def _apply_pipe(self, table: Dict[str, pd.DataFrame], pipe: Callable[..., Any]) -> pd.DataFrame:
+    def _apply_pipe(self, table: Dict[str, pd.DataFrame], pipe: Callable[..., Any]) -> Dict[str, pd.DataFrame]:
         for func in pipe:
             table = func(table)
         return table
+    
+    def transform(self, tables: Dict[str, pd.DataFrame], pipes: Dict[str, Callable[..., Any]]) -> Dict[str, pd.DataFrame]:
+        
+        return self._apply_pipes(tables, pipes)
     
 
     def apply_merge(self, tables: Dict[str, pd.DataFrame]) -> Tuple[pd.DataFrame, pd.DataFrame]:
@@ -50,9 +55,15 @@ class ETL:
 
     def extract(self, url:str) -> Dict[str, pd.DataFrame]:
 
-        """Downloads data from the provided url"""
+        od.download(url)
+        dataset_name = url.split("/")[-1]
+        dataframes = defaultdict()
 
-        return donwload_data()
+        for dirname, _, filenames in os.walk(f'{os.getcwd()}/{dataset_name}'):
+            for filename in filenames:
+                dataframes[filename.split(".")[0]] = pd.read_csv(f"{dirname}/{filename}")
+
+        return dataframes
         
 
 
