@@ -15,7 +15,6 @@ logger = logging.getLogger(__name__)
 
 class ETL:
 
-    @exec_time
     def extract(self, url:str) -> Dict[str, pd.DataFrame]:
 
         od.download(url)
@@ -29,7 +28,7 @@ class ETL:
         logger.info(f'Data extracted succesfully - {dt.datetime.now()}')
         return dataframes
     
-    @exec
+
     def _apply_pipes(self, tables: Dict[str, pd.DataFrame], pipes: Dict[str, Callable[..., Any]]) -> Dict[str, pd.DataFrame]:
         for table in tables:
             if table in pipes:
@@ -69,7 +68,7 @@ class ETL:
         logger.info(f'Tables merged successfully - {dt.datetime.now()}')
         return merged_tables_train, merged_tables_test
 
-
+    @exec_time
     def load(self, url:str, pipes: Dict[str, Callable[..., Any]]) -> Tuple[pd.DataFrame, pd.DataFrame]:
         data = self.extract(url)
         data = self._transform(tables=data, pipes=pipes)
