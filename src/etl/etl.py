@@ -4,12 +4,9 @@ import sys
 import logging
 from decorators.exec_time import exec_time
 import datetime as dt
-from typing import Dict, List, Tuple
-from collections import defaultdict
+from typing import Dict, List, Tuple, Callable, Any
 import opendatasets as od
-import numpy as np
-from sklearn.impute import SimpleImputer
-from dataloader.dataloader import donwload_data, merge_data
+from dataloader.dataloader import donwload_data
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -17,27 +14,16 @@ logger = logging.getLogger(__name__)
 
 class ETL:
     
-    def __init__(self, map_pipes: Dict[str, List], filter_pipes: Dict[str, List]):
-        self.map_pipes = map_pipes
-        self.filter_pipes = filter_pipes
-        
 
-    def apply_map(self, tables: Dict[str, pd.DataFrame]) -> Dict[str, pd.DataFrame]:
-        return self._apply_pipes(tables, self.map_pipes)
-
-
-    def apply_filter(self, tables: Dict[str, pd.DataFrame]) -> Dict[str, pd.DataFrame]:
-        return self._apply_pipes(tables, self.filter_pipes)
-    
-
-    def _apply_pipes(self, tables: Dict[str, pd.DataFrame], pipes) -> Dict[str, pd.DataFrame]:
+    def _apply_pipes(self, tables: Dict[str, pd.DataFrame], pipes: Dict[str, Callable[..., Any]]) -> Dict[str, pd.DataFrame]:
         for table in tables:
             if table in pipes:
                 pipe = pipes[table]
-                tables[table] = self._apply_pipes(tables[table], pipe)
+                tables[table] = self._apply_pipe(tables[table], pipe)
         return tables
     
-    def _apply_pipe(self, tables: Dict[str, pd.DataFrame], pipe) -> pd.DataFrame:
+
+    def _apply_pipe(self, table: Dict[str, pd.DataFrame], pipe: Callable[..., Any]) -> pd.DataFrame:
         for func in pipe:
             table = func(table)
         return table
