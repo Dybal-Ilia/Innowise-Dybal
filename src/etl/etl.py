@@ -7,13 +7,26 @@ import datetime as dt
 from typing import Dict, List, Tuple, Callable, Any
 from collections import defaultdict
 import opendatasets as od
-from dataloader.dataloader import donwload_data
+
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
 class ETL:
+
+
+    def _extract(self, url:str) -> Dict[str, pd.DataFrame]:
+
+        od.download(url)
+        dataset_name = url.split("/")[-1]
+        dataframes = defaultdict()
+
+        for dirname, _, filenames in os.walk(f'{os.getcwd()}/{dataset_name}'):
+            for filename in filenames:
+                dataframes[filename.split(".")[0]] = pd.read_csv(f"{dirname}/{filename}")
+
+        return dataframes
     
 
     def _apply_pipes(self, tables: Dict[str, pd.DataFrame], pipes: Dict[str, Callable[..., Any]]) -> Dict[str, pd.DataFrame]:
@@ -24,17 +37,18 @@ class ETL:
         return tables
     
 
-    def _apply_pipe(self, table: Dict[str, pd.DataFrame], pipe: Callable[..., Any]) -> Dict[str, pd.DataFrame]:
+    def _apply_pipe(self, table: pd.DataFrame, pipe: Callable[..., Any]) -> pd.DataFrame:
         for func in pipe:
             table = func(table)
         return table
     
-    def transform(self, tables: Dict[str, pd.DataFrame], pipes: Dict[str, Callable[..., Any]]) -> Dict[str, pd.DataFrame]:
+
+    def _transform(self, tables: Dict[str, pd.DataFrame], pipes: Dict[str, Callable[..., Any]]) -> Dict[str, pd.DataFrame]:
         
         return self._apply_pipes(tables, pipes)
-    
 
-    def apply_merge(self, tables: Dict[str, pd.DataFrame]) -> Tuple[pd.DataFrame, pd.DataFrame]:
+
+    def _apply_merge(self, tables: Dict[str, pd.DataFrame]) -> Tuple[pd.DataFrame, pd.DataFrame]:
         merged_tables_train = (
             tables['sales_train']
             .merge(tables['items'], on = 'item_id', how = 'left')
@@ -52,18 +66,11 @@ class ETL:
         return merged_tables_train, merged_tables_test
 
 
-
-    def extract(self, url:str) -> Dict[str, pd.DataFrame]:
-
-        od.download(url)
-        dataset_name = url.split("/")[-1]
-        dataframes = defaultdict()
-
-        for dirname, _, filenames in os.walk(f'{os.getcwd()}/{dataset_name}'):
-            for filename in filenames:
-                dataframes[filename.split(".")[0]] = pd.read_csv(f"{dirname}/{filename}")
-
-        return dataframes
+    def load(self, url:str, pipes: Dict[str, Callable[..., Any]]) -> Tuple[pd.DataFrame, pd.DataFrame]:
+        data = self._extract(url)
+        data = self._transform(tables=data, pipes=pipes)
+        data = self._apply_merge(tables = data)
+        return data
         
 
 
