@@ -15,8 +15,8 @@ logger = logging.getLogger(__name__)
 
 class ETL:
 
-
-    def _extract(self, url:str) -> Dict[str, pd.DataFrame]:
+    @exec_time
+    def extract(self, url:str) -> Dict[str, pd.DataFrame]:
 
         od.download(url)
         dataset_name = url.split("/")[-1]
@@ -26,14 +26,16 @@ class ETL:
             for filename in filenames:
                 dataframes[filename.split(".")[0]] = pd.read_csv(f"{dirname}/{filename}")
 
+        logger.info(f'Data extracted succesfully - {dt.datetime.now()}')
         return dataframes
     
-
+    @exec
     def _apply_pipes(self, tables: Dict[str, pd.DataFrame], pipes: Dict[str, Callable[..., Any]]) -> Dict[str, pd.DataFrame]:
         for table in tables:
             if table in pipes:
                 pipe = pipes[table]
                 tables[table] = self._apply_pipe(tables[table], pipe)
+        logger.info(f'Pipes aplied sucessfully - {dt.datetime.now()}')
         return tables
     
 
@@ -45,6 +47,7 @@ class ETL:
 
     def _transform(self, tables: Dict[str, pd.DataFrame], pipes: Dict[str, Callable[..., Any]]) -> Dict[str, pd.DataFrame]:
         
+        logger.info(f'Data transformed successfully - {dt.datetime.now()}')
         return self._apply_pipes(tables, pipes)
 
 
@@ -63,13 +66,15 @@ class ETL:
             .merge(tables['shops'], on = 'shop_id', how = 'left')
         )
 
+        logger.info(f'Tables merged successfully - {dt.datetime.now()}')
         return merged_tables_train, merged_tables_test
 
 
     def load(self, url:str, pipes: Dict[str, Callable[..., Any]]) -> Tuple[pd.DataFrame, pd.DataFrame]:
-        data = self._extract(url)
+        data = self.extract(url)
         data = self._transform(tables=data, pipes=pipes)
         data = self._apply_merge(tables = data)
+        logger.info(f'Data loaded successfully - {dt.datetime.now()}')
         return data
         
 
