@@ -1,0 +1,30 @@
+[project]
+name = "practice-ds-1-1"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "jupyter>=1.1.1",
+    "kaggle>=1.7.4.5",
+    "matplotlib>=3.10.5",
+    "matplotlib-inline>=0.1.7",
+    "numpy>=2.3.2",
+    "opendatasets>=0.1.22",
+    "pandas>=2.3.1",
+    "scikit-learn>=1.7.1",
+    "scipy>=1.16.1",
+    "seaborn>=0.13.2",
+    "statsmodels>=0.14.5",
+    "torch>=2.8.0",
+]
+
+[build-system]
+requires = ["setuptools>=69.0.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]
