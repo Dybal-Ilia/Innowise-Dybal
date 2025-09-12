@@ -42,6 +42,7 @@ class FeatureExtractor:
         self.df.sort_index(inplace=True)
         return self.df
     
+
     def _log_transform(self):
         self.df['item_price_log'] = np.log1p(self.df.loc[:, 'item_price'])
         self.df['monthly_revenue_log'] = np.log1p(self.df.loc[:, 'monthly_revenue'])
@@ -78,9 +79,13 @@ class FeatureExtractor:
     
 
     def _create_lags(self):
-        self.df['1_lag'] = self.df['item_cnt_month'].shift(1).fillna(0)
-        self.df['3_lag'] = self.df['item_cnt_month'].shift(3).fillna(0)
-        self.df['12_lag'] = self.df['item_cnt_month'].shift(12).fillna(0)
+        for i in [1, 2, 3]:
+            self.df[f'sales_lag_{i}'] = self.df['item_cnt_month'].shift(i)
+
+        self.df['sales_rolling_mean_3'] = self.df['item_cnt_month'].rolling(3).mean()
+        self.df['sales_rolling_mean_6'] = self.df['item_cnt_month'].rolling(6).mean()
+
+        self.df['sales_lag_12'] = self.df['item_cnt_month'].shift(12)
         return self.df
     
     def _drop_reduntant(self):
@@ -90,7 +95,7 @@ class FeatureExtractor:
     
 
     def features_extract(self):
-        self.df = self._process_dates()
+        self.df = self._create_time_features()
         self.df = self._aggregate()
         self.df = self._log_transform()
         self.df = self._generalize_category()
