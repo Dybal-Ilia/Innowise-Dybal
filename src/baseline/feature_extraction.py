@@ -9,17 +9,17 @@ class FeatureExtractor:
     def __init__(self, df:pd.DataFrame):
         self.df = df.copy()
 
-    def _process_dates(self):
+    def _create_time_features(self):
         self.df['date'] = pd.to_datetime(self.df['date'])
         self.df['year'] = self.df['date'].dt.year
         self.df['month'] = self.df['date'].dt.month
-        self.df['week'] = self.df['date'].dt.isocalendar().week
-        self.df['day_of_week'] = self.df['date'].dt.day_of_week
         self.df['period'] = self.df['year'].astype(str) + '-' + self.df['month'].astype(str).str.zfill(2)
         self.df['month_sin'] = np.sin(2 * np.pi * self.df['month'] / 12)
         self.df['month_cos'] = np.cos(2 * np.pi * self.df['month'] / 12)
+        self.df['is_high_season'] = self.df['month'].isin([10, 11, 12]).astype(int)
+        self.df['is_low_season'] = self.df['month'].isin([3, 4, 5]).astype(int)
         return self.df
-    
+
 
     def _aggregate(self):
         self.df = self.df.groupby(['period', 'item_id', 'shop_id']).agg({
@@ -33,7 +33,9 @@ class FeatureExtractor:
             'year':'first',
             'month':'first',
             'month_sin': 'first',
-            'month_cos': 'first'
+            'month_cos': 'first',
+            'is_high_season': 'first',
+            'is_low_season': 'first'
         }).reset_index().rename(columns={'item_cnt_day':'item_cnt_month'})
         self.df['monthly_revenue'] = self.df.loc[:,'item_price'] * self.df.loc[:,'item_cnt_month']
         self.df.set_index('period', inplace=True)
