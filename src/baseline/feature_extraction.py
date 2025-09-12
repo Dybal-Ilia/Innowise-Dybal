@@ -80,13 +80,14 @@ class FeatureExtractor:
 
     def _create_lags(self):
         for i in [1, 2, 3]:
-            self.df[f'sales_lag_{i}'] = self.df['item_cnt_month'].shift(i)
+            self.df[f'sales_lag_{i}'] = self.df['item_cnt_month'].shift(i).fillna(0)
 
-        self.df['sales_rolling_mean_3'] = self.df['item_cnt_month'].rolling(3).mean()
-        self.df['sales_rolling_mean_6'] = self.df['item_cnt_month'].rolling(6).mean()
+        self.df['sales_rolling_mean_3'] = self.df['item_cnt_month'].rolling(3).mean().fillna(0)
+        self.df['sales_rolling_mean_6'] = self.df['item_cnt_month'].rolling(6).mean().fillna(0)
 
-        self.df['sales_lag_12'] = self.df['item_cnt_month'].shift(12)
+        self.df['sales_lag_12'] = self.df['item_cnt_month'].shift(12).fillna(0)
         return self.df
+    
     
     def _drop_reduntant(self):
         self.df = self.df.drop(['item_id', 'shop_id', 'item_category_id', 'item_category_name',
