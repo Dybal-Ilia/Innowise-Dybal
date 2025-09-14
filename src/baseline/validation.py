@@ -21,14 +21,20 @@ class DataValidator():
     def split(self, X, y=None, groups=None):
         n_samples = len(X)
         val_size = self.val_size or (n_samples // (self.n_splits + 1))
-        train_size = n_samples - val_size
+        train_size = n_samples - (self.n_splits * val_size) - ((self.n_splits - 1) * self.gap if self.n_splits > 1 else 0)
+
 
         for i in range(self.n_splits):
-            val_end = train_size + (i * val_size)
-            val_start = val_end + self.gap
+            train_end = train_size + i * (val_size + self.gap)
+            
+            val_start = train_end + self.gap
             val_end = val_start + val_size
+            
+            if val_end > n_samples:
+                print(f"Warning: Split {i+1} exceeds data length.")
+                break
 
-            train_indices = np.arange(val_end)
+            train_indices = np.arange(train_end)
             val_indices = np.arange(val_start, val_end)
 
             yield train_indices, val_indices
