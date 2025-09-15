@@ -2,7 +2,7 @@ import warnings
 warnings.filterwarnings('ignore')
 import pandas as pd
 import numpy as np
-
+from sklearn.preprocessing import TargetEncoder
 
 class FeatureExtractor:
 
@@ -88,7 +88,26 @@ class FeatureExtractor:
         self.df['sales_lag_12'] = self.df['item_cnt_month'].shift(12).fillna(0)
         return self.df
     
+    def _encode_ordinals(self):
+        ordinal_mappings = {
+            'price_level': {'cheap': 0, 'medium': 1, 'expensive': 2, 'extraordinary': 3},
+            'category_popularity': {'unpopular': 0, 'semi-popular': 1, 'popular': 2, 'very_popular': 3},
+            'shop_popularity': {'unpopular': 0, 'semi-popular': 1, 'popular': 2, 'very_popular': 3},
+            'city_popularity': {'unpopular': 0, 'semi-popular': 1, 'popular': 2, 'very_popular': 3}
+        }
+        for col, mapping in ordinal_mappings.items():
+            self.df[col] = self.df[col].map(mapping).astype(int)
+        return self.df    
     
+
+    def _create_targets(self):
+        categorical_cols = ['item_name', 'shop_name', 'city', 'gen_cat']
+        te = TargetEncoder()
+        self.df[categorical_cols] = te.fit_transform(self.df[categorical_cols], self.df['item_cnt_month_log'])
+        return self.df
+
+
+
     def _drop_reduntant(self):
         self.df = self.df.drop(['item_id', 'shop_id', 'item_category_id', 'item_category_name',
                                  'month', 'item_cnt_month', 'monthly_revenue', 'item_price'], axis=1)
@@ -102,6 +121,8 @@ class FeatureExtractor:
         self.df = self._generalize_category()
         self.df = self._qcut_expansion()
         self.df = self._create_lags()
+        self.df = self._encode_ordinals()
+        self.df = self._create_targets()
         self.df = self._drop_reduntant()
         return self.df
     
